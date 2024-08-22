@@ -12,16 +12,16 @@ export const useAnswerManagement = ({ setAnswers, setQuestions, answers }: UseAn
   // handles option changes
   const handleChangeOption = useCallback(
     (value: string | number, questionId: number) => {
-      // update answers state with the new or updated answer.
+      // update answers state with the new or updated answer
       setAnswers((prev) =>
         prev.some((item) => item.questionId === questionId)
           ? prev.map((item) => (item.questionId === questionId ? { questionId, value, spentTime: 0 } : item))
           : [...prev, { questionId, value, spentTime: 0 }]
       )
 
-      // update questions state based on the selected option.
+      // update the questions list based on the selected answer
       setQuestions((prev) => {
-        // recursive function to find and add conditional questions based on the selected answer.
+        // recursive function to find questions to add
         const findQuestionsToAdd = (
           conditionalBlocks: Record<string, Question[]>,
           value: string | number
@@ -34,7 +34,7 @@ export const useAnswerManagement = ({ setAnswers, setQuestions, answers }: UseAn
           nextQuestions.forEach((question) => {
             allQuestions.push(question)
 
-            // if the question has conditional blocks and has been answered, add nested questions.
+            // if the question has conditional blocks and it has already been answered, add the nested questions
             if (question.conditionalBlocks && answers.some((answer) => answer.questionId === question.id)) {
               const userAnswerValue = answers.find((answer) => answer.questionId === question.id)?.value
               const nestedQuestions = findQuestionsToAdd(question.conditionalBlocks, userAnswerValue || '')
@@ -45,22 +45,40 @@ export const useAnswerManagement = ({ setAnswers, setQuestions, answers }: UseAn
           return allQuestions
         }
 
+        // recursive function to remove questions that are no longer relevant
+        const removeNestedQuestions = (
+          conditionalBlocks: Record<string, Question[]>,
+          currentQuestions: Question[]
+        ): Question[] => {
+          const allIdsToRemove: number[] = Object.values(conditionalBlocks)
+            .flat()
+            .map((question) => question.id)
+
+          // recursive function to remove all nested questions
+          Object.values(conditionalBlocks).forEach((questions) => {
+            questions.forEach((question) => {
+              if (question.conditionalBlocks) {
+                currentQuestions = removeNestedQuestions(question.conditionalBlocks, currentQuestions)
+              }
+            })
+          })
+
+          // return the updated list of questions without the ones to remove
+          return currentQuestions.filter((question) => !allIdsToRemove.includes(question.id))
+        }
+
         const currentQuestion = prev?.find((item) => item.id === questionId)
 
-        // if the current question doesn't have conditional blocks, return the current state.
+        // if the current question has no conditional blocks, return the current list of questions
         if (!currentQuestion?.conditionalBlocks) return prev
 
-        // find next questions based on the current answer.
+        // delete all old questions that are no longer relevant
+        let updatedQuestions = removeNestedQuestions(currentQuestion.conditionalBlocks, prev)
+
+        // find new questions to add based on the current answer
         const nextQuestions = findQuestionsToAdd(currentQuestion.conditionalBlocks, value)
 
-        // filter out questions that are no longer relevant based on the new answer.
-        const otherAnswerQuestions = Object.values(currentQuestion.conditionalBlocks)
-          .flat()
-          .map((question) => question.id)
-
-        let updatedQuestions = prev.filter((question) => !otherAnswerQuestions.includes(question.id))
-
-        // insert the next questions into the questions array at the correct position.
+        // insert the next questions in the correct position
         if (nextQuestions.length) {
           const questionIdx = updatedQuestions.findIndex((question) => question.id === questionId)
           updatedQuestions = [

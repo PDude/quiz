@@ -24,6 +24,12 @@ export const useQuestionNavigation = ({
     loadFromLocalStorage<number>(LocalStorageKey.ACTIVE_QUESTION_IDX, 1)
   )
 
+  // function to filter answers by current questions
+  const filterAnswers = useCallback((currentAnswers: Answer[], currentQuestions: Question[]): Answer[] => {
+    const validQuestionIds = currentQuestions.map((q) => q.id) // gather the IDs of all questions in the current list
+    return currentAnswers.filter((answer) => validQuestionIds.includes(answer.questionId)) // leave only answers for existing questions
+  }, [])
+
   // moving to the previous question
   const handlePrevQuestion = useCallback(() => {
     if (activeQuestionIdx === 1) return
@@ -35,8 +41,7 @@ export const useQuestionNavigation = ({
     // find the current answer and update the time spent on it
     const currentAnswer = answers.find((answer) => answer.questionId === currentQuestionId)?.value
 
-    // update the answers array with the new spent time for the current question,
-    // if user returned to the question and changed the answer again, then update the spent time, otherwise keep it as it is
+    // update the answers array with the new spent time for the current question
     setAnswers((prev) =>
       prev.map((item) =>
         item.questionId === currentQuestionId
@@ -73,11 +78,14 @@ export const useQuestionNavigation = ({
         : item
     )
 
-    setAnswers(updatedAnswers)
+    // filter answers by current questions
+    const filteredAnswers = filterAnswers(updatedAnswers, questions)
+
+    setAnswers(filteredAnswers)
     setStartTime(endTime)
 
     localStorage.setItem(LocalStorageKey.QUESTIONS, JSON.stringify(questions))
-    localStorage.setItem(LocalStorageKey.ANSWERS, JSON.stringify(updatedAnswers))
+    localStorage.setItem(LocalStorageKey.ANSWERS, JSON.stringify(filteredAnswers))
 
     if (activeQuestionIdx === questions.length) {
       setIsQuizCompleted(true)
@@ -87,7 +95,7 @@ export const useQuestionNavigation = ({
 
     setActiveQuestionIdx((prev) => prev + 1)
     localStorage.setItem(LocalStorageKey.ACTIVE_QUESTION_IDX, (activeQuestionIdx + 1).toString())
-  }, [activeQuestionIdx, answers, questions, startTime, setAnswers, setStartTime, setIsQuizCompleted])
+  }, [activeQuestionIdx, answers, questions, startTime, setAnswers, setStartTime, setIsQuizCompleted, filterAnswers])
 
   return {
     activeQuestionIdx,
